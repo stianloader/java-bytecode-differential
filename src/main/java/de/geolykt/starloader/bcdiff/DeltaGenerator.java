@@ -50,14 +50,18 @@ public class DeltaGenerator {
             System.exit(0);
         }
         if (args[0].equals("generate")) {
-            if (args.length != 4) {
-                System.err.println("Invalid argument count. The argument count MUST be 4 for the generate command.");
+            if (!(args.length == 4 || args.length == 5)) {
+                System.err.println("Invalid argument count. The argument count MUST be 4 or 5 for the generate command.");
                 printHelp();
                 System.exit(1);
             }
+            String[] packageFilter = new String[0];
+            if (args.length > 4) {
+                packageFilter = args[4].split(",");
+            }
             try (JarFile original = new JarFile(args[1])) {
                 try (JarFile revised = new JarFile(args[2])) {
-                    new DeltaGenerator().generatePatch(original, revised, Integer.valueOf(args[3])).forEach(System.out::println);;
+                    new DeltaGenerator().generatePatch(original, revised, Integer.valueOf(args[3]), packageFilter).forEach(System.out::println);;
                 }
             } catch (Throwable e) {
                 System.err.println("Unable to perform action (broken jars?)");
@@ -129,6 +133,7 @@ public class DeltaGenerator {
     public void applyPatch(JarFile original, File revised, List<String> fullPatch) throws IOException, PatchFailedException {
         try (JarOutputStream os = new JarOutputStream(new FileOutputStream(revised))) {
             Map<String, ClassNode> originalNodes = new HashMap<>();
+            Map<String, ClassNode> allNodes = new HashMap<>();
             Map<String, byte[]> resources = new HashMap<>();
 
             Enumeration<JarEntry> entries = original.entries();
@@ -140,18 +145,23 @@ public class DeltaGenerator {
                         isTest.close();
                         continue; // apparently these files also start with the 0xCAFEBABE prefix.
                     }
+                    boolean validClassFile = true;
                     if (isTest.read() != 0xCA || isTest.read() != 0xFE || isTest.read() != 0xBA || isTest.read() != 0xBE) {
-                        resources.put(next.getName(), readAllBytes(isTest));
-                        isTest.close();
-                        continue;
+                        validClassFile = false;
                     }
                     isTest.close();
-                    // InflaterInputStream sadly does not support mark/reset, so we have to do it the dirty way.
+                    if (validClassFile) {
+                        // InflaterInputStream sadly does not support mark/reset, so we have to do it the dirty way.
+                        try (InputStream is = original.getInputStream(next)) {
+                            ClassReader cr = new ClassReader(is);
+                            ClassNode result = new ClassNode();
+                            cr.accept(result, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+                            originalNodes.put(next.getName(), result);
+                            allNodes.put(result.name, result);
+                        }
+                    }
                     try (InputStream is = original.getInputStream(next)) {
-                        ClassReader cr = new ClassReader(is);
-                        ClassNode result = new ClassNode();
-                        cr.accept(result, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-                        originalNodes.put(next.getName(), result);
+                        resources.put(next.getName(), readAllBytes(is));
                     }
                 }
             }
@@ -183,7 +193,7 @@ public class DeltaGenerator {
                     List<String> newBytecode = DiffUtils.patch(Collections.emptyList(), diffUtilsPatch);
                     ClassNode out = new ClassNode();
                     new SLAssmbler(newBytecode.toArray(new String[0]), out);
-                    ClassWriter cw = new ClassWriter(0);
+                    ClassWriter cw = new FrameComputingClasswriter(0, allNodes);
                     out.accept(cw);
                     resources.put(revisedName, cw.toByteArray());
                 } else if (revisedName.equals("/dev/null")) {
@@ -198,21 +208,16 @@ public class DeltaGenerator {
                     List<String> newBytecode = DiffUtils.patch(generateBytecode(node), diffUtilsPatch);
                     ClassNode out = new ClassNode();
                     new SLAssmbler(newBytecode.toArray(new String[0]), out);
-                    ClassWriter cw = new ClassWriter(0);
+                    ClassWriter cw = new FrameComputingClasswriter(0, allNodes);
                     out.accept(cw);
                     resources.put(revisedName, cw.toByteArray());
                 }
             }
 
-            for (Map.Entry<String, ClassNode> node : originalNodes.entrySet()) {
-                ClassWriter cw = new ClassWriter(0);
-                node.getValue().accept(cw);
-                resources.put(node.getKey(), cw.toByteArray());
-            }
-
             for (Map.Entry<String, byte[]> data : resources.entrySet()) {
                 os.putNextEntry(new JarEntry(data.getKey()));
                 os.write(data.getValue());
+                os.closeEntry();
             }
 //            patch.forEach(System.out::println);
         }
@@ -246,12 +251,24 @@ public class DeltaGenerator {
         return out;
     }
 
-    public List<String> generatePatch(JarFile original, JarFile revised, int context) throws IOException {
+    public List<String> generatePatch(JarFile original, JarFile revised, int context, String[] packageWhitelist) throws IOException {
         Map<String, ClassNode> originalNodes = mapNodes(original);
         Map<String, ClassNode> revisedNodes = mapNodes(revised);
         List<String> output = new ArrayList<>();
 
         for (Map.Entry<String, ClassNode> onode : originalNodes.entrySet()) {
+            if (packageWhitelist.length != 0) {
+                boolean allow = false;
+                for (String filter : packageWhitelist) {
+                    if (onode.getKey().startsWith(filter)) {
+                        allow = true;
+                        break;
+                    }
+                }
+                if (!allow) {
+                    continue;
+                }
+            }
             List<String> originalBytecode = generateBytecode(onode.getValue());
             ClassNode rNode = revisedNodes.remove(onode.getKey());
             if (rNode == null) {
@@ -263,6 +280,18 @@ public class DeltaGenerator {
         }
 
         for (Map.Entry<String, ClassNode> surplusRevisedNode : revisedNodes.entrySet()) {
+            if (packageWhitelist.length != 0) {
+                boolean allow = false;
+                for (String filter : packageWhitelist) {
+                    if (surplusRevisedNode.getKey().startsWith(filter)) {
+                        allow = true;
+                        break;
+                    }
+                }
+                if (!allow) {
+                    continue;
+                }
+            }
             List<String> revisedBytecode = generateBytecode(surplusRevisedNode.getValue());
             Patch<String> patch = DiffUtils.diff(Collections.emptyList(), revisedBytecode);
             output.addAll(UnifiedDiffUtils.generateUnifiedDiff("/dev/null", surplusRevisedNode.getKey(), Collections.emptyList(), patch, context));

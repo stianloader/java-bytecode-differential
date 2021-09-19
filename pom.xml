@@ -1,0 +1,95 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>de.geolykt.starloader</groupId>
+    <artifactId>java-bytecode-differential</artifactId>
+    <version>1.0.0</version>
+    <name>Java Bytecode Differential</name>
+    <description>A primitive attempt at java bytecode differential generation</description>
+
+    <repositories>
+        <!-- For recaf -->
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!-- For the differential generation -->
+        <dependency>
+             <groupId>io.github.java-diff-utils</groupId>
+            <artifactId>java-diff-utils</artifactId>
+            <version>4.11</version>
+        </dependency>
+        <!-- For bytecode reading/writing -->
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-util</artifactId>
+            <version>9.2</version>
+        </dependency>
+        <!-- Disassembler -->
+        <dependency>
+            <groupId>com.github.Col-E</groupId>
+            <artifactId>Recaf</artifactId>
+            <version>2.21.0</version>
+            <exclusions>
+                <!-- We do not need most of the dependencies Recaf uses as
+                    we only use a tiny portion of Recaf code as a library. Dependencies that
+                    are used by this tiny portion can be included manually later on -->
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Recaf dependencies that we removed -->
+        <!-- https://mvnrepository.com/artifact/com.google.guava/guava -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>30.1.1-jre</version>
+        </dependency>
+        <!-- I have my doubts whether it is a good idea to have this library -->
+        <!-- https://mvnrepository.com/artifact/org.reactfx/reactfx -->
+        <dependency>
+            <groupId>org.reactfx</groupId>
+            <artifactId>reactfx</artifactId>
+            <version>2.0-M5</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.2.3</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.soc</groupId>
+            <artifactId>directories</artifactId>
+            <version>12</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <!-- Java 6 or 7 is almost never used nowadays and Java
+                        9+ has limited adoption in the consumer market that we (sadly) target So
+                        Java 8 is the compromise that we have to make. -->
+                    <target>8</target>
+                    <source>8</source>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.4</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

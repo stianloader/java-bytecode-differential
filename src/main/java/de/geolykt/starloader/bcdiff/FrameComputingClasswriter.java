@@ -102,11 +102,13 @@ public class FrameComputingClasswriter extends ClassWriter {
             if (interfaces.equals(interfaceName)) {
                 return true;
             } else {
-                ClassWrapper cWrapper = new ClassWrapper(interfaces);
                 if (isImplementingInterface(clazz, interfaceName)) {
                     return true;
                 }
             }
+        }
+        if (clazz.itf) {
+            return false;
         }
         return isImplementingInterface(clazz.getSuperWrapper(), interfaceName);
     }
@@ -114,7 +116,7 @@ public class FrameComputingClasswriter extends ClassWriter {
     protected boolean canAssign(ClassWrapper superType, ClassWrapper subType) {
         final String name = superType.name;
         if (superType.itf) {
-            return false;
+            return isImplementingInterface(subType, name);
         } else {
             while (subType != null) {
                 if (name.equals(subType.name) || name.equals(subType.superName)) {

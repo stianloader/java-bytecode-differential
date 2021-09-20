@@ -29,3 +29,5 @@
  - Annotations are not supported
  - Attributes are not supported
  - Larger jar size due to shadowing recaf
+ - Resulting jars may fail the verifier due to missing frames (ASM issue)
+

@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>de.geolykt.starloader</groupId>
     <artifactId>java-bytecode-differential</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>Java Bytecode Differential</name>
     <description>A primitive attempt at java bytecode differential generation</description>
 
@@ -27,7 +27,7 @@
         <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm-util</artifactId>
-            <version>9.2</version>
+            <version>9.4</version>
         </dependency>
         <!-- Disassembler -->
         <dependency>

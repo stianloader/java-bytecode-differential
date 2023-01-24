@@ -230,9 +230,6 @@ public class DeltaGenerator {
         while (entries.hasMoreElements()) {
             JarEntry next = entries.nextElement();
             try (InputStream isTest = input.getInputStream(next)) {
-                if (next.getName().endsWith(".jnilib")) {
-                    continue; // apparently these files also start with the 0xCAFEBABE prefix.
-                }
                 if (isTest.read() != 0xCA || isTest.read() != 0xFE || isTest.read() != 0xBA || isTest.read() != 0xBE) {
                     isTest.close();
                     continue;
@@ -244,6 +241,8 @@ public class DeltaGenerator {
                     ClassNode result = new ClassNode();
                     cr.accept(result, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
                     out.put(next.getName(), result);
+                } catch (Exception discard) {
+                    // Some files (such as .jnilib or .dylib start with 0xCAFEBABE even though they are not plain java classes. We ignore them)
                 }
             }
         }
